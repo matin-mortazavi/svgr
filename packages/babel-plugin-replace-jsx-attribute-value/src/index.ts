@@ -11,6 +11,30 @@ export interface Options {
   values: Value[]
 }
 
+const parseRegExp = (regExpString: string) => {
+  const regExpPattern = /^\/(.*?)\/([gimsuy]*)$/
+  const match = regExpString.match(regExpPattern)
+
+  if (!match) {
+    return {
+      pattern: null,
+      flags: null,
+      regex: null,
+    }
+  }
+
+  const pattern = match[1]
+  const flags = match[2]
+
+  const regex = new RegExp(pattern, flags)
+
+  return {
+    pattern,
+    flags,
+    regex,
+  }
+}
+
 const addJSXAttribute = (api: ConfigAPI, opts: Options) => {
   const getAttributeValue = (
     value: string | boolean | number,
@@ -41,9 +65,25 @@ const addJSXAttribute = (api: ConfigAPI, opts: Options) => {
     visitor: {
       JSXAttribute(path: NodePath<t.JSXAttribute>) {
         const valuePath = path.get('value')
+
         if (!valuePath.isStringLiteral()) return
 
         opts.values.forEach(({ value, newValue, literal }) => {
+          const replaceRx = parseRegExp(value)
+          if (replaceRx.regex) {
+            //i put attribute name also here if it wil be needed needed in future
+            // const attributeName = path.node.name.name
+
+            //@ts-expect-error TODO
+            const attributeValue = path.node.value && path.node.value.value
+
+            if (attributeValue && replaceRx.regex.test(attributeValue)) {
+              const v = attributeValue.replace(replaceRx.regex, newValue)
+
+              path.node.value = getAttributeValue(v, literal)
+            }
+          }
+
           if (!valuePath.isStringLiteral({ value })) return
           const attributeValue = getAttributeValue(newValue, literal)
           if (attributeValue) {
